@@ -229,7 +229,7 @@ Users ──┬──> Profiles ──> Roles (Survivor/Volunteer/Coordinator/Ag
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-team/SIH1440-DisasterRescueApp.git
+git clone https://github.com/rachit140/SIH--Disaster-Management-Rescue-Coordination-App.git
 cd SIH1440-DisasterRescueApp
 ```
 
