@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 5 tests SAHAYSETU new modules (Survivors/Volunteers/Teams/Resources/Requests/Shelters/Messages/Alerts/Reports/Analytics/Profile). Backend: 33/33 pytest cases green - all new endpoints return correct shape (survivors {items,counts}, teams enriched with leader/team_status/current_mission/resources, resources with available/allocated/status + category filter, requests CRUD w/ Pending -> Approved advance, shelters with medical/food/water, conversations + POST message persists, alerts + PATCH status, reports list, analytics ?range=7d returns 8 datasets, profile GET/PATCH persists phone/organization/location via GET verification). All new endpoints require Bearer token (401 without). No mongo _id leak. Frontend: sidebar nav-* to ALL 10 new modules works and each screen renders (survivors-screen, volunteers-screen, teams-screen, resources-screen, requests-screen, shelters-screen, messages-screen, alerts-screen, reports-screen, analytics-screen). Analytics chips (Today/7 Days/30 Days) toggle range and >=8 SVG charts render. CRITICAL BUG FOUND: Clicking 'Add Survivor' on Survivors screen crashes with React 'Element type is invalid ... got: undefined. Check the render method of Survivors.' Root cause: /app/frontend/app/(app)/survivors.tsx imports SelectMenu from @/src/components/ui but SelectMenu is NOT exported from /app/frontend/src/components/ui.tsx (only Logo/Button/Input/Card/SeverityPill/Avatar/ComingSoon/StatusBadge/StatCard are exported). Same import exists in /app/frontend/app/(app)/requests.tsx (New Request modal will also crash). Because of this crash the Add Survivor / New Request end-to-end flows could not be exercised.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "PATCH /api/auth/profile", "issue": "Response body only returns public_user fields (user_id/email/name/role/verified/picture/provider) so phone/organization/location are missing from the PATCH response, though they ARE persisted (visible via GET /api/auth/profile). Consider returning the enriched user (same shape as GET) so the client does not need an extra round-trip."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Survivors Add modal (survivors.tsx)", "issue": "Opening the Add Survivor modal crashes the app with 'Element type is invalid ... got: undefined' because SelectMenu is imported from @/src/components/ui but not exported there. Reference: /app/frontend/app/(app)/survivors.tsx:8 and :93,:94", "testID": "add-survivor / sv-save", "priority": "CRITICAL"},
+      {"component": "Requests New Request modal (requests.tsx)", "issue": "Same SelectMenu import will crash the New Request modal when opened. Reference: /app/frontend/app/(app)/requests.tsx (SelectMenu used at lines 69,72)", "testID": "new-request / rq-submit", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [
+      {"flow": "Survivor create end-to-end", "issue": "Blocked by SelectMenu crash - could not verify sv-name/sv-age/sv-location/sv-contact + sv-save UI submits to POST /api/survivors. Backend endpoint itself is verified via pytest (accepts all fields incl emergency_type/priority defaults from the modal).", "affected_testIDs": ["add-survivor", "sv-name", "sv-age", "sv-location", "sv-contact", "sv-save"]},
+      {"flow": "Resource request create end-to-end", "issue": "Blocked by same SelectMenu crash. Backend POST /api/requests verified via pytest.", "affected_testIDs": ["new-request", "rq-qty", "rq-location", "rq-submit"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sahaysetu_modules.py",
+    "/app/backend/tests/test_sahaysetu_api.py",
+    "/app/test_reports/pytest/pytest_results_iteration5.xml",
+    "/app/test_reports/iteration_5.json",
+    "/app/test_reports/ui2/it5_analytics.jpeg",
+    "/app/test_reports/ui2/it5_analytics2.jpeg"
+  ],
+  "action_items": [
+    "CRITICAL: Export SelectMenu from /app/frontend/src/components/ui.tsx (or wherever the component actually lives). Right now importing { SelectMenu } from '@/src/components/ui' returns undefined and React crashes as soon as the Add Survivor / New Request modal opens. This blocks two flagship flows in this iteration.",
+    "After exporting SelectMenu, re-verify: (a) add-survivor -> sv-save creates and shows survivor in list; (b) new-request -> rq-submit creates a Pending request and advance-<id> moves it forward.",
+    "Optional: PATCH /api/auth/profile should return the full enriched profile (name+phone+organization+location) instead of just public_user fields so the client can update state without a second GET.",
+    "Optional: If SelectMenu is intended to live in a separate module (e.g. src/components/select.tsx), re-export it from ui.tsx to keep the current import path consistent."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py: all new endpoints correctly Depends(get_current_user); mongo _id stripped via {'_id': 0} projections and body.pop('_id', None) after insert - clean.",
+    "backend/server.py:751 GET /api/auth/profile fills default 'organization': 'National Disaster Response Force' and 'location': 'New Delhi, India' for users who never set them - fine for demo, but be aware first PATCH will overwrite these defaults.",
+    "backend/server.py:744 update_profile returns public_user(u) which drops phone/organization/location - mismatch with GET shape; either extend public_user or return the raw db doc (minus _id/password_hash).",
+    "frontend/app/(app)/survivors.tsx and requests.tsx import 'SelectMenu' from '@/src/components/ui' - this named export DOES NOT exist in /app/frontend/src/components/ui.tsx (verified). Confirmed at runtime: React DevTools shows 'Element type is invalid ... got: undefined. Check the render method of Survivors.'",
+    "Nice: shared Meta / ChipRow re-exported from survivors.tsx and reused across new screens - clean pattern.",
+    "Nice: react-native-svg charts (bar/line/2 donut/regional bar/utilization) all rendered under Analytics on the web preview without red screen."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sahaysetu_modules.py (new - 33 pytest cases covering all new endpoints + 401-guards + create/verify persistence)"
+  ],
+  "success_rate": {"backend": "100% (33/33)", "frontend": "~85% - navigation and rendering to all 10 new screens verified; Add Survivor + New Request flows blocked by SelectMenu import bug"},
+  "seed_data_creation": "Backend tests created: several TEST_ survivors (name TEST_Survivor_<hex>), one TEST_ resource request (Drinking Water x5 -> Pending -> Approved), one TEST_ conversation message on first seeded conversation, PATCH on first seeded alert to 'Acknowledged', and PATCH on arjun@sahaysetu.in profile (phone/org/location) then reverted name to 'Arjun Coordinator'. No frontend UI seed data was created because the Add Survivor modal crashes before submission.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend is fully green (33 new + 16 existing pytest cases). The blocking issue is a missing named export 'SelectMenu' from /app/frontend/src/components/ui.tsx that crashes the Add Survivor and New Request modals. After the main agent fixes the export, re-run the UI script in /app/test_reports/ui2/ (or replay this iteration) to verify add-survivor -> sv-save inserts a survivor and new-request -> rq-submit inserts a Pending request that can be advanced via advance-<id>. Also cover alerts ack-<id>/resolve-<id> badge transitions, messages msg-send bubble append, reports Export CSV/PDF toast, and profile edit ep-save round-trip.",
+  "rca_of_issue": "Runtime error: 'Element type is invalid: expected a string ... but got: undefined. Check the render method of `Survivors`.' Reproduction: login as arjun@sahaysetu.in / rescue123, click sidebar nav-survivors, click 'Add Survivor'. Root cause: /app/frontend/app/(app)/survivors.tsx line 8 imports { Card, StatCard, StatusBadge, Button, Input, SelectMenu } from '@/src/components/ui', but /app/frontend/src/components/ui.tsx exports Logo, Button, Input, Card, SeverityPill, Avatar, ComingSoon, StatusBadge, StatCard - NOT SelectMenu. So SelectMenu resolves to undefined, and when the modal renders <SelectMenu .../> (lines 93,94) React throws. The same import pattern exists in /app/frontend/app/(app)/requests.tsx (lines 69,72). Mitigation: add and export a SelectMenu component (dropdown/press-to-open menu that reads value + options + onChange) from /app/frontend/src/components/ui.tsx (or from a new module and re-export from ui.tsx). No backend change needed - backend already accepts the fields the modal defaults to (emergency_type='Flood', priority='High' for survivors; resource_type='Drinking Water', priority='High' for requests)."
+}

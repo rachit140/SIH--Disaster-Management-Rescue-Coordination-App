@@ -1,0 +1,70 @@
+{
+  "app_name": "SIH1440 Rescue Coordination",
+  "archetype": "THE PERFORMANCE PRO / TACTICAL HIGH CONTRAST",
+  "context": "Mobile Web App / Emergency Disaster Relief Offline-First PWA",
+  "typography": {
+    "heading": "Barlow Condensed, sans-serif",
+    "body": "Inter, sans-serif",
+    "weights": ["400", "600", "700", "900"],
+    "sizes": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "body": "text-base sm:text-lg",
+      "small": "text-xs sm:text-sm font-medium uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "primary": "#FF3B30",
+    "primary_hover": "#E03229",
+    "background_dark": "#0A0A0A",
+    "surface_dark": "#161618",
+    "card_dark": "#1E1E22",
+    "border_dark": "#2C2C32",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "accent_sos": "#FF2D55",
+    "accent_safe": "#34C759",
+    "accent_warning": "#FF9500",
+    "accent_info": "#007AFF"
+  },
+  "visual_enhancers": {
+    "tactical_borders": "1px solid #2C2C32",
+    "emergency_glow": "0 0 25px rgba(255, 59, 48, 0.4)",
+    "safe_glow": "0 0 20px rgba(52, 199, 89, 0.3)",
+    "glass_surface": "backdrop-blur-xl bg-[#161618]/90 border border-[#2C2C32]"
+  },
+  "component_name": "SIH1440RescueApp",
+  "grids": {
+    "mobile_stack": "grid grid-cols-1 gap-4",
+    "dashboard_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+  },
+  "layouts": {
+    "container": "max-w-4xl mx-auto px-4 py-6 min-h-screen pb-24",
+    "header": "sticky top-0 z-50 backdrop-blur-xl bg-[#0A0A0A]/95 border-b border-[#2C2C32] px-4 py-3 flex items-center justify-between"
+  },
+  "motion": {
+    "tap_scale": "active:scale-95 transition-transform duration-150",
+    "smooth_fade": "transition-opacity duration-200"
+  },
+  "accessibility": {
+    "min_touch_target": "min-h-[48px] min-w-[48px]",
+    "contrast_ratio": "APCA 4.5:1 compliant high visibility for emergency lighting",
+    "data_testid_convention": "kebab-case role-based"
+  },
+  "media": {
+    "offline_banner": "Persistent sync queue indicator with auto-retry sync",
+    "audio_sos": "Vibration and audible alert simulation on SOS trigger"
+  },
+  "3d_libraries": {
+    "none_required": "Tactical 2D map & local mesh nodes simulation"
+  },
+  "image_urls": [],
+  "universal_guidelines": [
+    "No pure black #000000 without tinted neutrals #0A0A0A",
+    "All interactive elements must have data-testid attributes",
+    "High contrast tactile touch targets for crisis usability",
+    "Bilingual English / Hindi support built-in",
+    "Fully offline first simulation with local storage queue and FastAPI sync endpoints"
+  ]
+}

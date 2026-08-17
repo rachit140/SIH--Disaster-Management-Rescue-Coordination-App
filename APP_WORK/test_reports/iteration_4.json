@@ -1,0 +1,49 @@
+{
+  "summary": "Full E2E test of SAHAYSETU (backend + Expo web preview at 1440x900 and 375x812). Backend: 16/16 pytest cases green covering health, JWT auth (login/register+OTP/verify/forgot+reset/gov-login/role/logout), 401 on missing+invalid token, 409 duplicate email, 400 bad OTP, dashboard summary (kpis: active_incidents=12, people_affected=2459, volunteers>=823, rescues=806, by_severity + recent), incidents list w/ severity+status+search filters, /incidents/{id} detail + 404, PATCH status, POST /updates, /map/markers (all 5 arrays populated with lat/lng), and no MongoDB _id leak. Frontend: splash auto-redirects to /login; seeded login arjun@sahaysetu.in/rescue123 lands on dashboard-screen with 4 KPI cards showing 12 / 2,459 / 823 / 806; Leaflet map renders in iframe with legend chips; Recent Incidents list clickable -> /incident/INC-1000 with all 5 tabs (Overview/Updates/Resources/Teams/Reports) and 5 action buttons; update-input+update-send posts timeline entry (verified new 'TEST_playwright_note' bubble); Incidents screen chip filters (High/Active) and incident-search='Flood' both filter list correctly; Live Map with all 5 layer toggles rendered (incidents/teams/resources/shelters/hospitals) plus Leaflet map; Settings theme-dark toggles whole app to dark and PERSISTS across nav-dashboard AND full page reload (verified via screenshot of dark dashboard); profile-screen and sos-screen render; sidebar-toggle collapses on desktop and opens mobile-drawer at 375x812. Register flow: reg-name/email/password -> otp?dev=944223 with otp-code auto-prefilled -> role-coordinator + role-confirm -> dashboard-screen (all in one shot). Forgot-password: fp-email/fp-send returned dev_code, fp-code prefilled, fp-newpw+fp-reset succeeded and returned to /login. gov-login button logged in as demo coordinator and reached dashboard. Split login screen (>=1280) renders left brand panel + right form. No React Native red screen. No deprecated Expo packages (expo-av/barcode-scanner/background-fetch) found. No page errors thrown during any run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sahaysetu_api.py",
+    "/app/test_reports/pytest/pytest_results_iteration4.xml",
+    "/app/test_reports/iteration_4.json",
+    "/app/test_reports/ui2/it4_dashboard.jpeg",
+    "/app/test_reports/ui2/it4_incidents.jpeg",
+    "/app/test_reports/ui2/it4_map.jpeg",
+    "/app/test_reports/ui2/it4_dark.jpeg",
+    "/app/test_reports/ui2/it4_mobile.jpeg",
+    "/app/test_reports/ui2/it4_register_flow.jpeg",
+    "/app/test_reports/ui2/it4_forgot.jpeg"
+  ],
+  "action_items": [
+    "None blocking. Optional: after resetting a password via forgot-password, the app returns to /login where the user must re-enter the new password. Consider auto-logging them in or showing a success toast; current behavior is acceptable.",
+    "Optional: the incident PATCH endpoint accepts any status string (e.g. 'Monitoring') without validation - consider Enum('Active','Monitoring','Resolved') if strictness matters. Not a bug for demo scope.",
+    "Optional cosmetic: /login side panel uses full-height blue with white text - contrast is fine; no action needed."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py reads MONGO_URL/DB_NAME/JWT_SECRET via os.environ[...] (fail-fast) - correct.",
+    "get_current_user checks Emergent session_token first, then JWT - clean dual-auth path; missing/invalid token both correctly return 401.",
+    "public_user() strips password_hash and _id fields before returning - no PII/mongo _id leaks observed anywhere.",
+    "OTP hashed via bcrypt with per-record salt; expiry enforced; ttl index on otps.expires_at auto-cleans - solid.",
+    "login endpoint runs check_pw against a bogus hash when user not found, which mitigates user-enumeration timing (nice touch).",
+    "Dashboard/incidents/map endpoints all Depends(get_current_user) - auth-gated as required.",
+    "Frontend uses process.env.EXPO_PUBLIC_BACKEND_URL via src/api.ts (correct Expo web contract).",
+    "All interactive elements exposed correct testIDs (login-*, reg-*, otp-*, role-*, fp-*, kpi-*, chip-*, incident-*, tab-*, act-*, update-*, layer-*, nav-*, theme-*, sidebar-toggle, mobile-drawer) - testing was frictionless.",
+    "Leaflet map is rendered via web-only LeafletMap.web.tsx inside an iframe; container + markers render fine on headless preview.",
+    "Theme persists via AsyncStorage (verified across full page reload)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sahaysetu_api.py (new - 16 pytest cases)",
+    "Removed stale /app/backend/tests/test_core_api.py (belonged to prior rescue app)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% of exercised flows"},
+  "seed_data_creation": "Created several TEST_* users via /api/auth/register + verify-otp, one gov-login user (GOVIN-TEST-*), and one PATCH+POST update on INC-1002 (status restored to Active). One extra timeline entry 'TEST_playwright_note' persisted on INC-1000. Seeded 14 incidents / 5 teams / 4 shelters / 4 hospitals / 3 resources untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use EXPO_PUBLIC_BACKEND_URL from frontend/.env. Seeded login: arjun@sahaysetu.in / rescue123. Backend has DEV_RETURN_OTP=true so register+forgot responses include dev_code and the OTP/reset code is auto-prefilled on the UI (register redirects to /otp?dev=<6-digit>). Test all screens at desktop 1440x900; mobile 375x812 also works via sidebar-toggle -> mobile-drawer. Splash shows for ~2s ('Initializing secure response network...') then routes to /login when logged out. All 'Coming Soon' modules (Survivors/Volunteers/Rescue Teams/Resources/Requests/Shelters/Messages/Announcements/Alerts/Reports) are placeholder routes and not part of this iteration.",
+  "rca_of_issue": "No blocking issues found. Prior concerns from iteration_3 were about a different (rescue) app that has been replaced by SAHAYSETU; new test file /app/backend/tests/test_sahaysetu_api.py replaces the obsolete test_core_api.py."
+}
