@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "expo-router";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { useAuth } from "@/src/auth/AuthContext";
-import { NAV } from "@/src/lib/nav";
+import { CITIZEN_NAV, AGENCY_NAV } from "@/src/lib/nav";
 import { Logo, Avatar } from "@/src/components/ui";
 
 export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
@@ -20,6 +20,8 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
     onNavigate?.();
   };
 
+  const navSections = user?.role === "CITIZEN" ? CITIZEN_NAV : AGENCY_NAV;
+
   return (
     <View style={[styles.wrap, { width, backgroundColor: c.sidebarBg, borderRightColor: c.border }]}>
       <View style={[styles.logoRow, { justifyContent: collapsed ? "center" : "flex-start" }]}>
@@ -27,7 +29,7 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
-        {NAV.map((section) => (
+        {navSections.map((section) => (
           <View key={section.title} style={{ marginTop: 14 }}>
             {!collapsed && <Text style={[styles.sectionTitle, { color: c.textMuted }]}>{section.title}</Text>}
             {section.items.map((item) => {

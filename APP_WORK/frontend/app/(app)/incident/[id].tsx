@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -8,14 +8,14 @@ import { api } from "@/src/api";
 import { Card, SeverityPill } from "@/src/components/ui";
 import { LeafletMap } from "@/src/components/LeafletMap";
 import { sevColor, typeIcon } from "@/src/lib/incidentMeta";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 const TABS = ["Overview", "Updates", "Resources", "Teams", "Reports"];
 
 export default function IncidentDetail() {
   const { c, mode } = useTheme();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1000;
+  const { isDesktop } = useResponsive(1000);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [inc, setInc] = useState<any>(null);
   const [tab, setTab] = useState("Overview");

@@ -20,7 +20,7 @@ export default function Splash() {
   }, [fade]);
 
   if (!loading && minTime) {
-    if (!user) return <Redirect href="/login" />;
+    if (!user) return <Redirect href="/landing" />;
     if (!user.role) return <Redirect href="/role-selection" />;
     return <Redirect href="/dashboard" />;
   }

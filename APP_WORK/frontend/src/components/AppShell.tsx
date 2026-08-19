@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { usePathname } from "expo-router";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { Sidebar } from "@/src/components/Sidebar";
 import { TopBar } from "@/src/components/TopBar";
 import { PAGE_TITLES } from "@/src/lib/nav";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { c } = useTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
+  const { isDesktop } = useResponsive(900);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();

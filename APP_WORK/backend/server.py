@@ -10,6 +10,7 @@ from typing import List, Optional
 import bcrypt
 import jwt
 import httpx
+from twilio.rest import Client
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,8 +29,313 @@ OTP_MINUTES = int(os.environ["OTP_MINUTES"])
 DEV_RETURN_OTP = os.environ.get("DEV_RETURN_OTP", "false").lower() == "true"
 EMERGENT_OAUTH_URL = os.environ["EMERGENT_OAUTH_URL"]
 
+WAHA_API_URL = os.environ.get("WAHA_API_URL", "http://localhost:3000")
+TEXTBEE_API_KEY = os.environ.get("TEXTBEE_API_KEY", "")
+TEXTBEE_DEVICE_ID = os.environ.get("TEXTBEE_DEVICE_ID", "")
+
+
+def _normalize_phone(phone: str) -> str:
+    """Normalize phone number to E.164 format (default India +91)."""
+    if not phone:
+        return ""
+    clean = "".join(c for c in phone if c.isdigit() or c == "+")
+    if clean.startswith("+"):
+        return clean
+    if clean.startswith("91") and len(clean) == 12:
+        return f"+{clean}"
+    if len(clean) == 10:
+        return f"+91{clean}"
+    return f"+{clean}"
+
+
+def send_textbee_sms(to_number: str, body: str) -> bool:
+    """Sends SMS via self-hosted/free Textbee Android SMS gateway."""
+    to_number = _normalize_phone(to_number)
+    if not to_number:
+        return False
+    if not TEXTBEE_API_KEY:
+        logging.warning(f"[MOCK SMS] Credentials missing. To: {to_number}, Body: {body}")
+        return False
+
+    try:
+        url = "https://api.textbee.dev/api/v1/gateway/send-sms"
+        headers = {"x-api-key": TEXTBEE_API_KEY}
+        payload = {
+            "recipients": [to_number],
+            "message": body
+        }
+        if TEXTBEE_DEVICE_ID:
+            payload["device"] = TEXTBEE_DEVICE_ID
+            
+        res = httpx.post(url, json=payload, headers=headers, timeout=10.0)
+        res_data = res.json()
+        is_success = res_data.get("success") or res_data.get("data", {}).get("success")
+        if res.status_code in [200, 201] and is_success:
+            logging.info(f"[TEXTBEE SMS] Sent successfully to {to_number}")
+            return True
+        else:
+            logging.error(f"[TEXTBEE SMS] Failed → {to_number}: {res.text}")
+            return False
+    except Exception as e:
+        logging.error(f"[TEXTBEE SMS] Connection error → {to_number}: {e}")
+        return False
+
+
+def send_waha_whatsapp(to_number: str, body: str) -> bool:
+    """Sends WhatsApp message via local WAHA (WhatsApp HTTP API) gateway."""
+    to_number = _normalize_phone(to_number)
+    if not to_number:
+        return False
+
+    try:
+        # WAHA expects format: phone_number without + sign followed by @c.us
+        clean_num = to_number.replace("+", "")
+        url = f"{WAHA_API_URL}/api/sendText"
+        payload = {
+            "chatId": f"{clean_num}@c.us",
+            "text": body,
+            "session": "default"
+        }
+        res = httpx.post(url, json=payload, timeout=10.0)
+        if res.status_code in [200, 201]:
+            logging.info(f"[WAHA WHATSAPP] Sent successfully to {to_number}")
+            return True
+        else:
+            logging.error(f"[WAHA WHATSAPP] Failed → {to_number}: {res.text}")
+            return False
+    except Exception as e:
+        logging.error(f"[WAHA WHATSAPP] Connection error → {to_number}: {e}")
+        return False
+
+
+async def broadcast_sms(body: str):
+    """Fetch all registered user phone numbers from DB and send SMS to each."""
+    try:
+        users = await db.users.find({"phone": {"$exists": True}}, {"_id": 0, "phone": 1}).to_list(1000)
+        # Avoid duplicate numbers by casting to a set
+        phones = list(set(u["phone"] for u in users if u.get("phone")))
+        if not phones:
+            logging.info(f"[BROADCAST SMS] No phones registered. Body: {body}")
+            return
+        for phone in phones:
+            send_textbee_sms(phone, body)
+    except Exception as e:
+        logging.error(f"[BROADCAST SMS] Error: {e}")
+
+
+async def broadcast_whatsapp(body: str):
+    """Fetch all registered user phone numbers from DB and send WhatsApp to each."""
+    try:
+        users = await db.users.find({"phone": {"$exists": True}}, {"_id": 0, "phone": 1}).to_list(1000)
+        # Avoid duplicate numbers by casting to a set
+        phones = list(set(u["phone"] for u in users if u.get("phone")))
+        if not phones:
+            logging.info(f"[BROADCAST WA] No phones registered. Body: {body}")
+            return
+        for phone in phones:
+            send_waha_whatsapp(phone, body)
+    except Exception as e:
+        logging.error(f"[BROADCAST WA] Error: {e}")
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+
+import copy
+import re
+
+class InMemoryCursor:
+    def __init__(self, data):
+        self.data = data
+        self.index = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.index >= len(self.data):
+            raise StopAsyncIteration
+        val = self.data[self.index]
+        self.index += 1
+        return val
+
+    def sort(self, key_or_list, direction=None):
+        try:
+            reverse = direction == -1 if direction is not None else False
+            sort_key = key_or_list
+            if isinstance(key_or_list, list) and key_or_list:
+                sort_key = key_or_list[0][0]
+                reverse = key_or_list[0][1] == -1
+            
+            # Sort with fallback for datetime or missing keys
+            self.data.sort(key=lambda x: x.get(sort_key) or "", reverse=reverse)
+        except Exception:
+            pass
+        return self
+
+    async def to_list(self, length=None):
+        if length is None:
+            return self.data
+        return self.data[:length]
+
+class InMemoryCollection:
+    def __init__(self, name):
+        self.name = name
+        self.data = []
+
+    async def create_index(self, keys, **kwargs):
+        pass
+
+    async def count_documents(self, filter):
+        count = 0
+        for doc in self.data:
+            if self._matches(doc, filter):
+                count += 1
+        return count
+
+    def _matches(self, doc, filter):
+        if not filter:
+            return True
+        for k, v in filter.items():
+            if k == "$or":
+                any_match = False
+                for sub_filter in v:
+                    if self._matches(doc, sub_filter):
+                        any_match = True
+                        break
+                if not any_match:
+                    return False
+                continue
+
+            val = doc.get(k)
+            if isinstance(v, dict):
+                if "$exists" in v:
+                    exists = v["$exists"]
+                    if exists:
+                        if k not in doc: return False
+                    else:
+                        if k in doc: return False
+                elif "$regex" in v:
+                    pattern = v["$regex"]
+                    options = v.get("$options", "")
+                    flags = re.IGNORECASE if "i" in options else 0
+                    if val is None or not re.search(pattern, str(val), flags):
+                        return False
+                else:
+                    if val != v:
+                        return False
+            else:
+                if val != v:
+                    return False
+        return True
+
+    async def find_one(self, filter, projection=None):
+        for doc in self.data:
+            if self._matches(doc, filter):
+                res = copy.deepcopy(doc)
+                self._apply_projection(res, projection)
+                return res
+        return None
+
+    def _apply_projection(self, doc, projection):
+        if not projection:
+            return
+        for k, v in projection.items():
+            if v == 0:
+                doc.pop(k, None)
+
+    async def insert_one(self, doc):
+        d = copy.deepcopy(doc)
+        if "_id" not in d:
+            d["_id"] = str(uuid.uuid4())
+        self.data.append(d)
+        return d
+
+    async def insert_many(self, docs):
+        res = []
+        for doc in docs:
+            r = await self.insert_one(doc)
+            res.append(r)
+        return res
+
+    async def replace_one(self, filter, replacement, upsert=False):
+        for idx, doc in enumerate(self.data):
+            if self._matches(doc, filter):
+                rep = copy.deepcopy(replacement)
+                if "_id" not in rep and "_id" in doc:
+                    rep["_id"] = doc["_id"]
+                self.data[idx] = rep
+                return
+        if upsert:
+            await self.insert_one(replacement)
+
+    async def delete_one(self, filter):
+        for idx, doc in enumerate(self.data):
+            if self._matches(doc, filter):
+                self.data.pop(idx)
+                return
+
+    async def delete_many(self, filter):
+        self.data = [doc for doc in self.data if not self._matches(doc, filter)]
+
+    async def update_one(self, filter, update):
+        for doc in self.data:
+            if self._matches(doc, filter):
+                self._apply_update(doc, update)
+                return
+
+    async def find_one_and_update(self, filter, update, return_document=None):
+        for doc in self.data:
+            if self._matches(doc, filter):
+                self._apply_update(doc, update)
+                return copy.deepcopy(doc)
+        return None
+
+    def _apply_update(self, doc, update):
+        if "$set" in update:
+            for k, v in update["$set"].items():
+                doc[k] = copy.deepcopy(v)
+        if "$push" in update:
+            for k, v in update["$push"].items():
+                if k not in doc:
+                    doc[k] = []
+                elif not isinstance(doc[k], list):
+                    doc[k] = [doc[k]]
+                doc[k].append(copy.deepcopy(v))
+
+    def find(self, filter=None, projection=None):
+        matching = []
+        for doc in self.data:
+            if self._matches(doc, filter):
+                res = copy.deepcopy(doc)
+                self._apply_projection(res, projection)
+                matching.append(res)
+        return InMemoryCursor(matching)
+
+class InMemoryDatabase:
+    def __init__(self):
+        self.collections = {}
+
+    def __getattr__(self, name):
+        if name not in self.collections:
+            self.collections[name] = InMemoryCollection(name)
+        return self.collections[name]
+
+    def __getitem__(self, name):
+        return getattr(self, name)
+
+db_initialized = False
+
+async def init_db():
+    global db, db_initialized
+    if db_initialized:
+        return
+    try:
+        await asyncio.wait_for(client.server_info(), timeout=2.0)
+        logger.info("Successfully connected to MongoDB")
+    except Exception:
+        logger.warning("MongoDB not running. Switching to In-Memory Fallback Database!")
+        db = InMemoryDatabase()
+    db_initialized = True
 
 app = FastAPI(title="SAHAYSETU API")
 api = APIRouter(prefix="/api")
@@ -73,6 +379,7 @@ def public_user(u: dict) -> dict:
         "verified": u.get("verified", False),
         "picture": u.get("picture", ""),
         "provider": u.get("provider", "password"),
+        "phone": u.get("phone", ""),
     }
 
 
@@ -113,6 +420,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
     role: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class LoginIn(BaseModel):
@@ -148,6 +456,11 @@ class GovLoginIn(BaseModel):
     name: Optional[str] = None
 
 
+class SMSIn(BaseModel):
+    to_number: str
+    body: str
+
+
 class IncidentIn(BaseModel):
     title: str
     type: str
@@ -178,12 +491,15 @@ async def register(body: RegisterIn):
     if await db.users.find_one({"email": email}):
         raise HTTPException(409, "Email already registered")
     uid = f"usr_{uuid.uuid4().hex[:12]}"
-    await db.users.insert_one({
+    user_doc = {
         "user_id": uid, "email": email, "name": body.name,
         "password_hash": hash_pw(body.password), "role": body.role,
         "verified": False, "provider": "password", "picture": "",
         "created_at": now_utc(),
-    })
+    }
+    if body.phone:
+        user_doc["phone"] = _normalize_phone(body.phone)
+    await db.users.insert_one(user_doc)
     code = gen_otp()
     await db.otps.replace_one(
         {"email": email},
@@ -192,6 +508,8 @@ async def register(body: RegisterIn):
         upsert=True,
     )
     resp = {"message": "Verification code sent", "user_id": uid, "email": email}
+    if body.phone:
+        send_textbee_sms(body.phone, f"[SAHAYSETU] Your verification code is: {code}")
     if DEV_RETURN_OTP:
         resp["dev_code"] = code
     return resp
@@ -238,6 +556,8 @@ async def forgot_password(body: ForgotIn):
              "expires_at": now_utc() + timedelta(minutes=OTP_MINUTES)},
             upsert=True,
         )
+        if user.get("phone"):
+            send_textbee_sms(user["phone"], f"[SAHAYSETU] Your password reset code is: {code}")
         if DEV_RETURN_OTP:
             resp["dev_code"] = code
     return resp
@@ -315,6 +635,14 @@ async def logout(request: Request, user: dict = Depends(get_current_user)):
     return {"message": "Logged out"}
 
 
+@api.post("/sms/send")
+async def send_sms_endpoint(body: SMSIn, user: dict = Depends(get_current_user)):
+    success = send_twilio_sms(body.to_number, body.body)
+    if not success:
+        return {"status": "fallback_mock", "message": "Twilio failed or was unconfigured. Message logged to server stdout."}
+    return {"status": "success", "message": "SMS sent successfully via Twilio."}
+
+
 # ---------------------------------------------------------------------------
 # Domain: dashboard / incidents / map
 # ---------------------------------------------------------------------------
@@ -383,6 +711,18 @@ async def create_incident(body: IncidentIn, user: dict = Depends(get_current_use
     })
     await db.incidents.insert_one(doc)
     doc.pop("_id", None)
+    # CrisisUpdate → WhatsApp broadcast to all registered numbers
+    sev = doc.get("severity", "")
+    msg = (
+        f"🚨 [SAHAYSETU] Crisis Update\n"
+        f"Incident: {doc.get('title')}\n"
+        f"Location: {doc.get('location')}\n"
+        f"Severity: {sev}\n"
+        f"Affected: {doc.get('people_affected', 0)} people\n"
+        f"Status: {doc.get('status')}"
+    )
+    import asyncio
+    asyncio.ensure_future(broadcast_whatsapp(msg))
     return doc
 
 
@@ -471,10 +811,33 @@ RESOURCES_SEED = [
 @app.on_event("startup")
 async def seed():
     try:
+        await init_db()
         await db.users.create_index("email", unique=True)
         await db.users.create_index("user_id", unique=True)
         await db.user_sessions.create_index("session_token", unique=True)
         await db.otps.create_index("expires_at", expireAfterSeconds=0)
+
+        # Seed default users
+        default_users = [
+            ("arjun@sahaysetu.in", "Arjun Coordinator", "rescue123", "coordinator"),
+            ("rachitsharma9838@gmail.com", "Rachit Sharma", "123456789", "admin")
+        ]
+        for email, name, password, role in default_users:
+            if not await db.users.find_one({"email": email}):
+                uid = f"usr_{uuid.uuid4().hex[:12]}"
+                await db.users.insert_one({
+                    "user_id": uid, "email": email, "name": name,
+                    "password_hash": hash_pw(password), "role": role,
+                    "verified": True, "provider": "password", "picture": "",
+                    "phone": "+916393144211",   # Default test phone for broadcast notifications
+                    "created_at": now_utc(),
+                })
+            else:
+                # Ensure phone is set for existing seed users (in-memory DB restart)
+                await db.users.update_one(
+                    {"email": email, "phone": {"$exists": False}},
+                    {"$set": {"phone": "+916393144211"}}
+                )
 
         if await db.incidents.count_documents({}) == 0:
             docs = []
@@ -745,6 +1108,546 @@ async def update_profile(body: ProfileIn, user: dict = Depends(get_current_user)
             "location": u.get("location", "New Delhi, India"), "joined": "Jan 2024"}
 
 
+# ---------------------------------------------------------------------------
+# Domain: Missing Persons, Casualties, Camps, Announcements
+# ---------------------------------------------------------------------------
+class MissingPersonIn(BaseModel):
+    name: str
+    age: Optional[int] = None
+    gender: Optional[str] = "Unknown"  # Male | Female | Other | Unknown
+    last_seen_location: str
+    description: str = ""
+    contact_name: str = ""
+    contact_phone: str = ""
+    photo_url: str = ""
+
+
+
+class CasualtyIn(BaseModel):
+    name: Optional[str] = "Unknown"
+    age: Optional[int] = None
+    gender: Optional[str] = "Unknown"
+    casualty_type: Optional[str] = "Fatal"  # Fatal | Injured | Missing
+    location: str
+    incident_datetime: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    description: Optional[str] = ""
+    reporter_name: Optional[str] = ""
+    contact_name: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    additional_info: Optional[str] = ""
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
+    status: Optional[str] = "PENDING"
+
+
+
+class CampIn(BaseModel):
+    name: str
+    location: str
+    latitude: float = 0.0
+    longitude: float = 0.0
+    capacity: int = 0
+    occupancy: int = 0
+    status: str = "ACTIVE"  # ACTIVE | FULL | CLOSED
+    medical: bool = False
+    food: bool = True
+    water: bool = True
+    shelter: bool = True
+    contact_number: Optional[str] = ""
+    description: Optional[str] = ""
+    camp_type: Optional[str] = "Relief Camp"
+
+
+
+class AnnouncementIn(BaseModel):
+    title: str
+    body: str
+    priority: str = "Info"  # Info | Warning | Critical
+    area: str = "All"
+
+
+class ResourceRequestIn(BaseModel):
+    camp_id: str
+    camp_name: str
+    resource_category: str
+    resource_name: str
+    quantity_required: int
+    unit: str
+    priority: str = "MEDIUM"  # LOW | MEDIUM | HIGH | CRITICAL
+    required_by: str = ""
+    description: Optional[str] = ""
+    remarks: Optional[str] = ""
+
+
+class ResourceResponseIn(BaseModel):
+    quantity_offered: int
+    expected_delivery_time: str
+    delivery_method: str = "Delivery" # Delivery | Pickup
+    remarks: Optional[str] = ""
+
+
+
+@api.get("/missing-persons")
+async def list_missing_persons(user: dict = Depends(get_current_user)):
+    return await db.missing_persons.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.post("/missing-persons", status_code=201)
+async def create_missing_person(body: MissingPersonIn, user: dict = Depends(get_current_user)):
+    doc = body.dict()
+    doc.update({
+        "id": f"MP-{uuid.uuid4().hex[:6].upper()}",
+        "status": "Pending Request",
+        "reported_by": user.get("name", "Coordinator"),
+        "created_at": now_utc(),
+    })
+    await db.missing_persons.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/missing-persons/{mp_id}")
+async def update_missing_person(mp_id: str, body: StatusPatch, user: dict = Depends(get_current_user)):
+    old_doc = await db.missing_persons.find_one({"id": mp_id})
+    if not old_doc:
+        raise HTTPException(404, "Missing person record not found")
+        
+    doc = await db.missing_persons.find_one_and_update(
+        {"id": mp_id}, {"$set": {"status": body.status}}, return_document=True)
+    doc.pop("_id", None)
+    
+    return doc
+
+
+
+@api.get("/casualties")
+async def list_casualties(user: dict = Depends(get_current_user)):
+    # Support "my-reports" filter for citizens
+    role = user.get("role", "CITIZEN")
+    provider = user.get("provider", "")
+    
+    # If the user is a citizen and requests their reports
+    query = {}
+    if role == "CITIZEN" and provider != "gov":
+        # Return all for safety, but check if we want to filter to user's reports.
+        # Let's filter by reported_by_user_id to only show My Reports to citizens
+        query = {"reported_by_user_id": user.get("user_id")}
+        
+    return await db.casualties.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.post("/casualties", status_code=201)
+async def create_casualty(body: CasualtyIn, user: dict = Depends(get_current_user)):
+    doc = body.dict()
+    doc.update({
+        "id": f"CAS-{uuid.uuid4().hex[:6].upper()}",
+        "status": "PENDING",
+        "reported_by": user.get("name", "Citizen"),
+        "reported_by_user_id": user.get("user_id"),
+        "created_at": now_utc(),
+        "updated_at": now_utc(),
+        "assigned_agency": None,
+        "history": [
+            {
+                "status": "PENDING",
+                "changed_by": user.get("name", "Citizen"),
+                "timestamp": now_utc(),
+                "remarks": "Casualty report submitted by citizen"
+            }
+        ]
+    })
+    await db.casualties.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/casualties/{cas_id}/status")
+async def update_casualty_status(cas_id: str, body: StatusPatch, user: dict = Depends(get_current_user)):
+    old_doc = await db.casualties.find_one({"id": cas_id})
+    if not old_doc:
+        raise HTTPException(404, "Casualty record not found")
+        
+    new_status = body.status.upper()
+    history_entry = {
+        "status": new_status,
+        "changed_by": user.get("name", "Coordinator"),
+        "timestamp": now_utc(),
+        "remarks": f"Status updated to {new_status}"
+    }
+    
+    # Define update parameters
+    upd = {
+        "status": new_status,
+        "updated_at": now_utc()
+    }
+    
+    # If a rescue agency is assigning/updating the operations
+    if new_status in ["RESCUE IN PROCESS", "COMPLETED"]:
+        upd["assigned_agency"] = user.get("organization") or user.get("name", "Rescue Agency")
+        
+    doc = await db.casualties.find_one_and_update(
+        {"id": cas_id},
+        {
+            "$set": upd,
+            "$push": {"history": history_entry}
+        },
+        return_document=True
+    )
+    doc.pop("_id", None)
+    
+    return doc
+
+
+
+@api.get("/camps")
+async def list_camps(
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    radius: Optional[float] = 10.0,
+    user: dict = Depends(get_current_user)
+):
+    camps = await db.shelters.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    
+    # Calculate distance if user location is provided
+    if latitude is not None and longitude is not None:
+        import math
+        def get_distance(lat1, lon1, lat2, lon2):
+            # Haversine formula
+            R = 6371.0 # Radius of Earth in km
+            dlat = math.radians(lat2 - lat1)
+            dlon = math.radians(lon2 - lon1)
+            a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            return R * c
+
+        # Append distance to camps and sort
+        for camp in camps:
+            camp_lat = camp.get("latitude") or 0.0
+            camp_lng = camp.get("longitude") or 0.0
+            camp["distance"] = get_distance(latitude, longitude, camp_lat, camp_lng)
+            
+        # Filter by radius if it's set
+        role = user.get("role", "CITIZEN")
+        if role == "CITIZEN":
+            # For citizens, return only ACTIVE or FULL camps, hide CLOSED ones
+            camps = [c for c in camps if c.get("status", "ACTIVE") != "CLOSED" and c.get("distance", 0) <= radius]
+            
+        camps.sort(key=lambda x: x.get("distance", 0.0))
+        
+    return camps
+
+
+@api.post("/camps", status_code=201)
+async def create_camp(body: CampIn, user: dict = Depends(get_current_user)):
+    doc = body.dict()
+    # Auto-adjust status based on occupancy
+    status = "ACTIVE"
+    if doc["occupancy"] >= doc["capacity"]:
+        status = "FULL"
+        
+    doc.update({
+        "id": f"CMP-{uuid.uuid4().hex[:6].upper()}",
+        "status": status,
+        "created_by": user.get("name", "Coordinator"),
+        "created_at": now_utc(),
+        "updated_at": now_utc()
+    })
+    await db.shelters.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/camps/{camp_id}/occupancy")
+async def update_camp_occupancy(camp_id: str, body: dict, user: dict = Depends(get_current_user)):
+    occupancy = body.get("occupancy")
+    if occupancy is None or occupancy < 0:
+        raise HTTPException(400, "Invalid occupancy count")
+        
+    camp = await db.shelters.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(404, "Camp not found")
+        
+    capacity = camp.get("capacity", 100)
+    if occupancy > capacity:
+        raise HTTPException(400, "Occupancy cannot exceed camp capacity")
+        
+    # Auto status shifts
+    status = "ACTIVE"
+    if occupancy >= capacity:
+        status = "FULL"
+        
+    updated = await db.shelters.find_one_and_update(
+        {"id": camp_id},
+        {"$set": {"occupancy": occupancy, "status": status, "updated_at": now_utc()}},
+        return_document=True
+    )
+    updated.pop("_id", None)
+    return updated
+
+
+@api.patch("/camps/{camp_id}/resources")
+async def update_camp_resources(camp_id: str, body: dict, user: dict = Depends(get_current_user)):
+    camp = await db.shelters.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(404, "Camp not found")
+        
+    # Update resource availability flags
+    upd = {
+        "food": body.get("food", camp.get("food", True)),
+        "water": body.get("water", camp.get("water", True)),
+        "medical": body.get("medical", camp.get("medical", False)),
+        "shelter": body.get("shelter", camp.get("shelter", True)),
+        "updated_at": now_utc()
+    }
+    
+    updated = await db.shelters.find_one_and_update(
+        {"id": camp_id},
+        {"$set": upd},
+        return_document=True
+    )
+    updated.pop("_id", None)
+    return updated
+
+
+@api.patch("/camps/{camp_id}/status")
+async def update_camp_status(camp_id: str, body: StatusPatch, user: dict = Depends(get_current_user)):
+    camp = await db.shelters.find_one({"id": camp_id})
+    if not camp:
+        raise HTTPException(404, "Camp not found")
+        
+    status = body.status.upper()
+    upd = {
+        "status": status,
+        "updated_at": now_utc()
+    }
+    
+    # Track extra variables on closure
+    if status == "CLOSED":
+        upd["closed_by"] = user.get("name", "Coordinator")
+        upd["closed_at"] = now_utc()
+        
+    updated = await db.shelters.find_one_and_update(
+        {"id": camp_id},
+        {"$set": upd},
+        return_document=True
+    )
+    updated.pop("_id", None)
+    return updated
+
+
+# --- Resource Requests & Volunteer Responses ---
+
+@api.get("/resource-requests")
+async def list_resource_requests(user: dict = Depends(get_current_user)):
+    role = user.get("role", "CITIZEN")
+    # For Citizens/Volunteers, only return APPROVED or OPEN/VOLUNTEER_RESPONDED/IN_FULFILLMENT statuses
+    if role == "CITIZEN":
+        return await db.resource_requests.find(
+            {"status": {"$in": ["APPROVED", "OPEN", "VOLUNTEER_RESPONDED", "IN_FULFILLMENT"]}},
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(500)
+    # Admin/Agencies get access to all requests
+    return await db.resource_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api.post("/resource-requests", status_code=201)
+async def create_resource_request(body: ResourceRequestIn, user: dict = Depends(get_current_user)):
+    doc = body.dict()
+    doc.update({
+        "id": f"REQ-{uuid.uuid4().hex[:6].upper()}",
+        "quantity_fulfilled": 0,
+        "status": "PENDING_REVIEW",
+        "requested_by": user.get("name", "Coordinator"),
+        "requested_by_user_id": user.get("user_id"),
+        "created_at": now_utc(),
+        "updated_at": now_utc(),
+        "history": [
+            {
+                "status": "PENDING_REVIEW",
+                "changed_by": user.get("name", "Coordinator"),
+                "timestamp": now_utc(),
+                "remarks": "Resource request created and submitted for admin review"
+            }
+        ],
+        "offers": []
+    })
+    await db.resource_requests.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/resource-requests/{req_id}/status")
+async def update_request_status(req_id: str, body: StatusPatch, user: dict = Depends(get_current_user)):
+    req_doc = await db.resource_requests.find_one({"id": req_id})
+    if not req_doc:
+        raise HTTPException(404, "Resource request not found")
+        
+    status = body.status.upper()
+    history_entry = {
+        "status": status,
+        "changed_by": user.get("name", "Administrator"),
+        "timestamp": now_utc(),
+        "remarks": f"Status updated to {status} by administrative control"
+    }
+    
+    # Map APPROVED directly to OPEN status for community view
+    upd_status = status
+    if status == "APPROVED":
+        upd_status = "OPEN"
+        
+    upd = {
+        "status": upd_status,
+        "updated_at": now_utc()
+    }
+    
+    if status == "APPROVED":
+        upd["approved_by"] = user.get("name", "Admin")
+        upd["approved_at"] = now_utc()
+        
+    updated = await db.resource_requests.find_one_and_update(
+        {"id": req_id},
+        {
+            "$set": upd,
+            "$push": {"history": history_entry}
+        },
+        return_document=True
+    )
+    return updated
+
+
+@api.post("/resource-requests/{req_id}/offers", status_code=201)
+async def submit_volunteer_offer(req_id: str, body: ResourceResponseIn, user: dict = Depends(get_current_user)):
+    req_doc = await db.resource_requests.find_one({"id": req_id})
+    if not req_doc:
+        raise HTTPException(404, "Resource request not found")
+        
+    offer_id = f"OFF-{uuid.uuid4().hex[:6].upper()}"
+    offer_doc = {
+        "id": offer_id,
+        "resource_request_id": req_id,
+        "volunteer_id": user.get("user_id"),
+        "volunteer_name": user.get("name", "Volunteer"),
+        "volunteer_phone": user.get("phone", ""),
+        "quantity_offered": body.quantity_offered,
+        "expected_delivery_time": body.expected_delivery_time,
+        "delivery_method": body.delivery_method,
+        "remarks": body.remarks,
+        "status": "SUBMITTED", # SUBMITTED | ACCEPTED | DELIVERED | REJECTED
+        "created_at": now_utc(),
+        "updated_at": now_utc()
+    }
+    
+    # Push offer and advance request status to VOLUNTEER_RESPONDED / IN_FULFILLMENT
+    updated = await db.resource_requests.find_one_and_update(
+        {"id": req_id},
+        {
+            "$push": {
+                "offers": offer_doc,
+                "history": {
+                    "status": "VOLUNTEER_RESPONDED",
+                    "changed_by": user.get("name", "Volunteer"),
+                    "timestamp": now_utc(),
+                    "remarks": f"Volunteer {user.get('name')} offered {body.quantity_offered} units"
+                }
+            },
+            "$set": {
+                "status": "VOLUNTEER_RESPONDED",
+                "updated_at": now_utc()
+            }
+        },
+        return_document=True
+    )
+    updated.pop("_id", None)
+    return updated
+
+
+@api.patch("/resource-requests/{req_id}/offers/{offer_id}/status")
+async def update_offer_status(req_id: str, offer_id: str, body: dict, user: dict = Depends(get_current_user)):
+    req_doc = await db.resource_requests.find_one({"id": req_id})
+    if not req_doc:
+        raise HTTPException(404, "Resource request not found")
+        
+    status = body.get("status", "").upper() # ACCEPTED | DELIVERED | REJECTED
+    offers = req_doc.get("offers", [])
+    
+    target_offer = None
+    for o in offers:
+        if o["id"] == offer_id:
+            o["status"] = status
+            o["updated_at"] = now_utc()
+            target_offer = o
+            break
+            
+    if not target_offer:
+        raise HTTPException(404, "Volunteer offer not found")
+        
+    # Recalculate fulfilled quantity on delivery confirmation
+    quantity_fulfilled = req_doc.get("quantity_fulfilled", 0)
+    req_status = req_doc.get("status", "OPEN")
+    
+    if status == "DELIVERED":
+        quantity_fulfilled += target_offer["quantity_offered"]
+        if quantity_fulfilled >= req_doc["quantity_required"]:
+            req_status = "FULFILLED"
+        else:
+            req_status = "IN_FULFILLMENT"
+            
+    # Save update
+    updated = await db.resource_requests.find_one_and_update(
+        {"id": req_id},
+        {
+            "$set": {
+                "offers": offers,
+                "quantity_fulfilled": quantity_fulfilled,
+                "status": req_status,
+                "updated_at": now_utc()
+            },
+            "$push": {
+                "history": {
+                    "status": req_status,
+                    "changed_by": user.get("name", "Coordinator"),
+                    "timestamp": now_utc(),
+                    "remarks": f"Fulfillment updated: delivery of {target_offer['quantity_offered']} units confirmed"
+                }
+            }
+        },
+        return_document=True
+    )
+    updated.pop("_id", None)
+    return updated
+
+
+
+
+@api.get("/announcements")
+async def list_announcements(user: dict = Depends(get_current_user)):
+    return await db.announcements.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@api.post("/announcements", status_code=201)
+async def create_announcement(body: AnnouncementIn, user: dict = Depends(get_current_user)):
+    doc = body.dict()
+    doc.update({
+        "id": f"ANN-{uuid.uuid4().hex[:6].upper()}",
+        "author": user.get("name", "Coordinator"),
+        "created_at": now_utc(),
+    })
+    await db.announcements.insert_one(doc)
+    doc.pop("_id", None)
+    # Announcement → WhatsApp to all registered users
+    priority_emoji = {"Critical": "🚨", "Warning": "⚠️", "Info": "ℹ️"}.get(doc["priority"], "📢")
+    wa_body = (
+        f"{priority_emoji} [SAHAYSETU] {doc['priority']} Announcement\n"
+        f"{doc['title']}\n\n"
+        f"{doc['body']}\n"
+        f"Area: {doc['area']}"
+    )
+    import asyncio
+    asyncio.ensure_future(broadcast_whatsapp(wa_body))
+    return doc
+
+
 @api.get("/auth/profile")
 async def get_profile(user: dict = Depends(get_current_user)):
     u = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0}) or user
@@ -805,6 +1708,7 @@ CONVERSATIONS_SEED = [
 @app.on_event("startup")
 async def seed_extra():
     try:
+        await init_db()
         if await db.survivors.count_documents({}) == 0:
             await db.survivors.insert_many([
                 {"id": f"SUR-{2000+i}", "name": n, "age": a, "location": loc, "emergency_type": et,
@@ -876,11 +1780,11 @@ async def seed_extra():
         logger.error(f"seed_extra error: {e}")
 
 
-app.include_router(api)
 app.add_middleware(
     CORSMiddleware, allow_credentials=True, allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],
 )
+app.include_router(api)
 
 
 @app.on_event("shutdown")

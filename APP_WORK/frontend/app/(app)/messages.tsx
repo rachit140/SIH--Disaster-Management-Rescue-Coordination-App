@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/src/theme/ThemeContext";
 import { api } from "@/src/api";
 import { ChipRow } from "./survivors";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 const TABS = ["All", "Teams", "Volunteers", "Coordinators", "Alerts"];
 const TAB_KIND: Record<string, string> = { Teams: "team", Volunteers: "volunteer", Coordinators: "coordinator", Alerts: "alert" };
 
 export default function Messages() {
   const { c } = useTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
+  const { isDesktop } = useResponsive(900);
   const [tab, setTab] = useState("All");
   const [convos, setConvos] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);

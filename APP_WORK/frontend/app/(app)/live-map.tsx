@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -7,6 +7,7 @@ import { useTheme } from "@/src/theme/ThemeContext";
 import { api } from "@/src/api";
 import { LeafletMap } from "@/src/components/LeafletMap";
 import { buildMarkers } from "@/src/lib/incidentMeta";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 const LAYERS: { key: string; label: string; colorKey: string; icon: string }[] = [
   { key: "incidents", label: "Incidents", colorKey: "red", icon: "alert-circle" },
@@ -18,8 +19,7 @@ const LAYERS: { key: string; label: string; colorKey: string; icon: string }[] =
 
 export default function LiveMap() {
   const { c, mode } = useTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
+  const { isDesktop } = useResponsive(900);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState<Record<string, boolean>>({ incidents: true, teams: true, resources: true, shelters: true, hospitals: true });

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 
 import { useTheme } from "@/src/theme/ThemeContext";
@@ -7,14 +7,14 @@ import { api } from "@/src/api";
 import { Card } from "@/src/components/ui";
 import { BarChart, LineChart, DonutChart, ProgressBar } from "@/src/components/charts";
 import { ChipRow } from "./survivors";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 const RANGES = ["today", "7d", "30d", "custom"];
 const RANGE_LABEL: Record<string, string> = { today: "Today", "7d": "7 Days", "30d": "30 Days", custom: "Custom" };
 
 export default function Analytics() {
   const { c } = useTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1000;
+  const { isDesktop } = useResponsive(1000);
   const [range, setRange] = useState("7d");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -8,11 +8,11 @@ import { api } from "@/src/api";
 import { Card, StatusBadge } from "@/src/components/ui";
 import { LeafletMap } from "@/src/components/LeafletMap";
 import { Meta } from "./survivors";
+import { useResponsive } from "@/src/hooks/useResponsive";
 
 export default function Teams() {
   const { c, mode } = useTheme();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1000;
+  const { isDesktop } = useResponsive(1000);
   const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
