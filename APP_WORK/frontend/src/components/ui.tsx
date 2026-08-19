@@ -5,20 +5,75 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "@/src/theme/ThemeContext";
 import { statusColor, statusSoft } from "@/src/lib/status";
 
+import Svg, { Path, Circle, G } from "react-native-svg";
+
 // ---- Brand logo (bridge = connection / support) ----
 export function Logo({ size = 40, showText = true, subtitle = false, light = false }: { size?: number; showText?: boolean; subtitle?: boolean; light?: boolean }) {
   const { c } = useTheme();
-  const textColor = light ? "#FFFFFF" : c.text;
-  const subColor = light ? "rgba(255,255,255,0.8)" : c.textMuted;
+  const textColor = light ? "#FFFFFF" : "#123B78"; // Navy blue from mockup
+  const subColor = light ? "rgba(255,255,255,0.8)" : "#667085";
+
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-      <View style={{ width: size, height: size, borderRadius: size * 0.28, backgroundColor: c.navy, alignItems: "center", justifyContent: "center" }}>
-        <MaterialCommunityIcons name="bridge" size={size * 0.6} color="#FFFFFF" />
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size} viewBox="0 0 100 100">
+          {/* Overlapping Arches/Rings at the top */}
+          <Path
+            d="M 20 50 A 20 20 0 0 1 60 50"
+            fill="none"
+            stroke={light ? "#FFA726" : "#FF8A00"}
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+          <Path
+            d="M 40 50 A 20 20 0 0 1 80 50"
+            fill="none"
+            stroke={light ? "#66BB6A" : "#16A66A"}
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+          <Path
+            d="M 30 42 A 20 20 0 0 1 70 42"
+            fill="none"
+            stroke={light ? "#42A5F5" : "#1463E8"}
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+
+          {/* Stick figures / pillars standing on the bridge */}
+          <Circle cx="35" cy="55" r="4.5" fill={light ? "#FFA726" : "#FF8A00"} />
+          <Path d="M 35 60 L 35 70" stroke={light ? "#FFA726" : "#FF8A00"} strokeWidth="3.5" strokeLinecap="round" />
+
+          <Circle cx="50" cy="52" r="4.5" fill={light ? "#66BB6A" : "#16A66A"} />
+          <Path d="M 50 57 L 50 70" stroke={light ? "#66BB6A" : "#16A66A"} strokeWidth="3.5" strokeLinecap="round" />
+
+          <Circle cx="65" cy="55" r="4.5" fill={light ? "#42A5F5" : "#1463E8"} />
+          <Path d="M 65 60 L 65 70" stroke={light ? "#42A5F5" : "#1463E8"} strokeWidth="3.5" strokeLinecap="round" />
+
+          {/* Bridge arch deck at the bottom */}
+          <Path
+            d="M 15 76 Q 50 54 85 76"
+            fill="none"
+            stroke={light ? "#FFFFFF" : "#123B78"}
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+          {/* Bridge support pillars */}
+          <Path d="M 28 72 L 28 78" stroke={light ? "#FFFFFF" : "#123B78"} strokeWidth="3" />
+          <Path d="M 50 69 L 50 78" stroke={light ? "#FFFFFF" : "#123B78"} strokeWidth="3" />
+          <Path d="M 72 72 L 72 78" stroke={light ? "#FFFFFF" : "#123B78"} strokeWidth="3" />
+        </Svg>
       </View>
       {showText && (
-        <View>
-          <Text style={{ color: textColor, fontSize: size * 0.5, fontWeight: "900", letterSpacing: 0.5 }}>SAHAYSETU</Text>
-          {subtitle && <Text style={{ color: subColor, fontSize: 11, marginTop: 2 }}>Disaster Response & Rescue Coordination</Text>}
+        <View style={{ flexShrink: 1 }}>
+          <Text style={{ color: textColor, fontSize: size * 0.52, fontWeight: "900", letterSpacing: 0.5, fontFamily: "System" }}>
+            SAHAYSETU
+          </Text>
+          {subtitle && (
+            <Text style={{ color: subColor, fontSize: size * 0.2, fontWeight: "800", letterSpacing: 0.4, marginTop: 1, textTransform: "uppercase" }}>
+              INTELLIGENT DISASTER RESPONSE & RESCUE COORDINATION
+            </Text>
+          )}
         </View>
       )}
     </View>

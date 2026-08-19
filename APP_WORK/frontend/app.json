@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "SAHAYSETU",
-    "slug": "frontend",
+    "slug": "sahaysetu",
+    "owner": "rachitsharma",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -24,7 +25,12 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.sihrescue.j05kje",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA", "READ_MEDIA_IMAGES"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -46,6 +52,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "28dc9838-9b6b-4bdf-8d56-fc66df81921e"
+      }
     }
   }
 }

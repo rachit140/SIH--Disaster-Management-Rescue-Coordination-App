@@ -540,8 +540,12 @@ export default function Casualties() {
             </ScrollView>
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
-              <Button title="Submit Casualty Report" onPress={handleCreate} />
+              <View style={{ flex: 1 }}>
+                <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Submit Casualty Report" onPress={handleCreate} />
+              </View>
             </View>
           </View>
         </View>

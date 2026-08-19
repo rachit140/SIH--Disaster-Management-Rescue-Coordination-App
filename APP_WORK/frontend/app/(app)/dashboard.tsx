@@ -11,11 +11,31 @@ import { LeafletMap } from "@/src/components/LeafletMap";
 import { buildMarkers, sevColor, typeIcon } from "@/src/lib/incidentMeta";
 import { useResponsive } from "@/src/hooks/useResponsive";
 
-const KPI_META: Record<string, { label: string; icon: string; key: string }> = {
-  active_incidents: { label: "Active Incidents", icon: "alert-circle", key: "red" },
-  people_affected: { label: "People Affected", icon: "people", key: "orange" },
-  volunteers_on_field: { label: "Volunteers On Field", icon: "hand-left", key: "green" },
-  rescues_completed: { label: "Rescues Completed", icon: "checkmark-done-circle", key: "blue" },
+const KPI_META: Record<string, { label: string; icon: string; bg: string; trendText: (val: any, trend: string) => string }> = {
+  active_incidents: { 
+    label: "Active Incidents", 
+    icon: "alert-circle", 
+    bg: "#EF3340",
+    trendText: (v, t) => `↑ ${v} from yesterday`
+  },
+  people_affected: { 
+    label: "People Affected", 
+    icon: "people", 
+    bg: "#FF8A00",
+    trendText: (v, t) => `↑ ${v} from yesterday`
+  },
+  volunteers_on_field: { 
+    label: "Volunteers On Field", 
+    icon: "hand-left", 
+    bg: "#16A66A",
+    trendText: (v, t) => `↑ ${v} from yesterday`
+  },
+  rescues_completed: { 
+    label: "Rescues Completed", 
+    icon: "checkmark-done-circle", 
+    bg: "#1463E8",
+    trendText: (v, t) => `↑ ${v} from yesterday`
+  },
 };
 
 export default function Dashboard() {
@@ -41,7 +61,6 @@ export default function Dashboard() {
     }, []),
   );
 
-  const kpiColor = (k: string) => (k === "red" ? c.red : k === "orange" ? c.orange : k === "green" ? c.green : c.blue);
   const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening";
 
   if (loading) {
@@ -51,7 +70,7 @@ export default function Dashboard() {
   const kpis = data?.kpis || {};
   const recent = data?.recent_incidents || [];
   const mapMarkers = markers ? buildMarkers(c, markers) : [];
-  const kpiCols = isDesktop ? "23%" : width >= 640 ? "48%" : "100%";
+  const kpiCols = isDesktop ? "23.5%" : width >= 640 ? "48%" : "100%";
 
   if (user?.role === "ADMIN") {
     return (
@@ -99,28 +118,26 @@ export default function Dashboard() {
   return (
     <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, gap: 18 }} showsVerticalScrollIndicator={false} testID="dashboard-screen">
       <View>
-        <Text style={{ color: c.text, fontSize: 24, fontWeight: "900" }}>{greeting}, {user?.name?.split(" ")[0] || "there"} 👋</Text>
+        <Text style={{ color: "#123B78", fontSize: 24, fontWeight: "900" }}>{greeting}, {user?.name || "Arjun Sharma"} 👋</Text>
         <Text style={{ color: c.textMuted, fontSize: 15, marginTop: 4 }}>Here&apos;s what&apos;s happening across your response network today.</Text>
       </View>
 
-      {/* KPIs */}
+      {/* KPIs (Mockup style color block cards) */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
         {Object.entries(KPI_META).map(([id, meta]) => {
           const k = kpis[id] || { value: 0, change: 0, trend: "up" };
-          const col = kpiColor(meta.key);
           return (
-            <Card key={id} testID={`kpi-${id}`} style={{ flexBasis: kpiCols as any, flexGrow: 1 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: col + "1F", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name={meta.icon as any} size={22} color={col} />
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                  <Ionicons name={k.trend === "up" ? "trending-up" : "trending-down"} size={15} color={c.green} />
-                  <Text style={{ color: c.green, fontSize: 13, fontWeight: "700" }}>{k.change}%</Text>
+            <Card key={id} testID={`kpi-${id}`} style={{ flexBasis: kpiCols as any, flexGrow: 1, backgroundColor: meta.bg, borderColor: "transparent", padding: 16 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>{meta.label}</Text>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name={meta.icon as any} size={15} color="#FFFFFF" />
                 </View>
               </View>
-              <Text style={{ color: c.text, fontSize: 30, fontWeight: "900", marginTop: 12 }}>{Number(k.value).toLocaleString()}</Text>
-              <Text style={{ color: c.textMuted, fontSize: 13, marginTop: 2 }}>{meta.label}</Text>
+              <Text style={{ color: "#FFFFFF", fontSize: 32, fontWeight: "900", marginTop: 10 }}>{Number(k.value).toLocaleString()}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, backgroundColor: "rgba(0,0,0,0.12)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: "flex-start" }}>
+                <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "800" }}>{meta.trendText(k.change, k.trend)}</Text>
+              </View>
             </Card>
           );
         })}
@@ -130,27 +147,27 @@ export default function Dashboard() {
       <View style={{ flexDirection: isDesktop ? "row" : "column", gap: 16 }}>
         <Card style={{ flex: isDesktop ? 2 : undefined, padding: 0, overflow: "hidden" }}>
           <View style={styles.cardHead}>
-            <Text style={{ color: c.text, fontSize: 16, fontWeight: "800" }}>Live Incident Overview</Text>
+            <Text style={{ color: "#123B78", fontSize: 16, fontWeight: "900" }}>Live Incident Overview</Text>
             <Pressable testID="open-live-map" onPress={() => router.push("/live-map")} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={{ color: c.blue, fontSize: 13, fontWeight: "600" }}>Full map</Text>
-              <Ionicons name="expand-outline" size={15} color={c.blue} />
+              <Text style={{ color: "#1463E8", fontSize: 13, fontWeight: "700" }}>Full map</Text>
+              <Ionicons name="expand-outline" size={15} color="#1463E8" />
             </Pressable>
           </View>
-          <LeafletMap markers={mapMarkers} dark={mode === "dark"} height={isDesktop ? 420 : 300} center={[22.9, 79.5]} zoom={isDesktop ? 5 : 4} />
+          <LeafletMap markers={mapMarkers} dark={mode === "dark"} height={isDesktop ? 400 : 300} center={[22.9, 79.5]} zoom={isDesktop ? 5 : 4} />
           <View style={[styles.legend, { borderTopColor: c.border }]}>
-            <Legend color={c.red} label="High" />
-            <Legend color={c.orange} label="Medium" />
-            <Legend color={c.green} label="Low" />
-            <Legend color={c.blue} label="Teams" />
-            <Legend color={c.purple} label="Shelters" />
+            <Legend color="#EF3340" label="High" />
+            <Legend color="#FF8A00" label="Medium" />
+            <Legend color="#16A66A" label="Low" />
+            <Legend color="#1463E8" label="Teams" />
+            <Legend color="#7C4DFF" label="Shelters" />
           </View>
         </Card>
 
-        <Card style={{ flex: isDesktop ? 1 : undefined, padding: 0 }}>
+        <Card style={{ flex: isDesktop ? 1.2 : undefined, padding: 0 }}>
           <View style={styles.cardHead}>
-            <Text style={{ color: c.text, fontSize: 16, fontWeight: "800" }}>Recent Incidents</Text>
+            <Text style={{ color: "#123B78", fontSize: 16, fontWeight: "900" }}>Recent Incidents</Text>
             <Pressable onPress={() => router.push("/incidents")}>
-              <Text style={{ color: c.blue, fontSize: 13, fontWeight: "600" }}>View all</Text>
+              <Text style={{ color: "#1463E8", fontSize: 13, fontWeight: "700" }}>View all</Text>
             </Pressable>
           </View>
           <View>
@@ -173,6 +190,27 @@ export default function Dashboard() {
             ))}
           </View>
         </Card>
+      </View>
+
+      {/* Bottom Summary Bar (mockup 03 bottom row) */}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 6 }}>
+        {[
+          { label: "Survivors Registered", val: "1,245", icon: "people-outline", col: "#1463E8" },
+          { label: "Volunteers", val: "1,056", icon: "walk-outline", col: "#16A66A" },
+          { label: "Resources Available", val: "156", icon: "cube-outline", col: "#FF8A00" },
+          { label: "Requests Submitted", val: "32", icon: "document-text-outline", col: "#7C4DFF" },
+          { label: "Active Alerts", val: "8", icon: "notifications-outline", col: "#EF3340" },
+        ].map((item, idx) => (
+          <Card key={idx} style={{ flexBasis: isDesktop ? "18%" : "46%", flexGrow: 1, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: item.col + "16", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name={item.icon as any} size={18} color={item.col} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.textMuted, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.2 }} numberOfLines={1}>{item.label}</Text>
+              <Text style={{ color: "#123B78", fontSize: 16, fontWeight: "900", marginTop: 2 }}>{item.val}</Text>
+            </View>
+          </Card>
+        ))}
       </View>
     </ScrollView>
   );

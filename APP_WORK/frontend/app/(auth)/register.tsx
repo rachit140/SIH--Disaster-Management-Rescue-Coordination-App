@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/src/theme/ThemeContext";
 import { useAuth } from "@/src/auth/AuthContext";
 import { AuthScaffold } from "@/src/components/AuthScaffold";
-import { Button, Input } from "@/src/components/ui";
+import { Button, Input, Logo } from "@/src/components/ui";
 
 export default function Register() {
   const { c } = useTheme();
@@ -35,13 +35,33 @@ export default function Register() {
 
   return (
     <AuthScaffold>
-      <View style={{ gap: 6 }}>
-        <Text style={{ color: c.text, fontSize: 28, fontWeight: "900" }}>Create Account</Text>
-        <Text style={{ color: c.textMuted, fontSize: 15 }}>Join the SAHAYSETU response network.</Text>
+      <View style={{ alignItems: "center", marginBottom: 10 }}>
+        <Logo size={56} showText={false} />
+        <Text style={{ color: "#123B78", fontSize: 24, fontWeight: "900", marginTop: 10, letterSpacing: 0.5 }}>SAHAYSETU</Text>
+        <Text style={{ color: c.textMuted, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginTop: 4 }}>
+          Create Account
+        </Text>
+        <Text style={{ color: c.textMuted, fontSize: 14, marginTop: 2 }}>Join the response network</Text>
       </View>
 
-      <Input testID="reg-name" label="Full Name" value={name} onChangeText={setName} placeholder="Arjun Sharma" icon="person-outline" autoCapitalize="words" />
-      <Input testID="reg-email" label="Email" value={email} onChangeText={setEmail} placeholder="you@agency.gov.in" icon="mail-outline" keyboardType="email-address" />
+      <Input 
+        testID="reg-name" 
+        label="Full Name" 
+        value={name} 
+        onChangeText={setName} 
+        placeholder="Arjun Sharma" 
+        icon="person-outline" 
+        autoCapitalize="words" 
+      />
+      <Input 
+        testID="reg-email" 
+        label="Email" 
+        value={email} 
+        onChangeText={setEmail} 
+        placeholder="you@agency.gov.in" 
+        icon="mail-outline" 
+        keyboardType="email-address" 
+      />
       <Input
         testID="reg-password"
         label="Password"
@@ -57,15 +77,20 @@ export default function Register() {
         }
       />
 
-      {!!err && <Text testID="reg-error" style={{ color: c.red, fontSize: 14 }}>{err}</Text>}
+      {!!err && <Text testID="reg-error" style={{ color: c.red, fontSize: 14, textAlign: "center" }}>{err}</Text>}
 
-      <Button testID="reg-submit" title="Create Account" onPress={submit} loading={loading} />
+      <Button testID="reg-submit" title="Create Account" onPress={submit} loading={loading} color="#1463E8" />
 
-      <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 4 }}>
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 14 }}>
         <Text style={{ color: c.textMuted, fontSize: 14 }}>Already registered?</Text>
         <Pressable testID="to-login" onPress={() => router.replace("/login")}>
-          <Text style={{ color: c.blue, fontSize: 14, fontWeight: "700" }}>Sign in</Text>
+          <Text style={{ color: "#1463E8", fontSize: 14, fontWeight: "800" }}>Sign in</Text>
         </Pressable>
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12 }}>
+        <Ionicons name="lock-closed" size={13} color="#16A66A" />
+        <Text style={{ color: c.textMuted, fontSize: 12, fontWeight: "600" }}>Secure, encrypted authentication</Text>
       </View>
     </AuthScaffold>
   );

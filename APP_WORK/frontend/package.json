@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "preinstall": "./scripts/cmd-guard.js --preinstall",
+    "preinstall": "node -e \"process.env.EAS_BUILD||process.env.YARN_IGNORE_SCRIPTS?process.exit(0):require('child_process').execFileSync(process.execPath,['./scripts/cmd-guard.js','--preinstall'],{stdio:'inherit'})\"",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",

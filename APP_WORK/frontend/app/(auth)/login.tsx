@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/src/theme/ThemeContext";
 import { useAuth } from "@/src/auth/AuthContext";
 import { AuthScaffold } from "@/src/components/AuthScaffold";
-import { Button, Input } from "@/src/components/ui";
+import { Button, Input, Logo } from "@/src/components/ui";
 
 export default function Login() {
   const { c } = useTheme();
@@ -47,12 +47,24 @@ export default function Login() {
 
   return (
     <AuthScaffold>
-      <View style={{ gap: 6 }}>
-        <Text style={{ color: c.text, fontSize: 28, fontWeight: "900" }}>Welcome Back</Text>
-        <Text style={{ color: c.textMuted, fontSize: 15 }}>Sign in to your response network.</Text>
+      <View style={{ alignItems: "center", marginBottom: 10 }}>
+        <Logo size={56} showText={false} />
+        <Text style={{ color: "#123B78", fontSize: 24, fontWeight: "900", marginTop: 10, letterSpacing: 0.5 }}>SAHAYSETU</Text>
+        <Text style={{ color: c.textMuted, fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginTop: 4 }}>
+          Welcome Back!
+        </Text>
+        <Text style={{ color: c.textMuted, fontSize: 14, marginTop: 2 }}>Login to continue</Text>
       </View>
 
-      <Input testID="login-email" label="Email or Phone" value={email} onChangeText={setEmail} placeholder="you@agency.gov.in" icon="mail-outline" keyboardType="email-address" />
+      <Input 
+        testID="login-email" 
+        label="Email or Phone" 
+        value={email} 
+        onChangeText={setEmail} 
+        placeholder="you@agency.gov.in" 
+        icon="mail-outline" 
+        keyboardType="email-address" 
+      />
       <Input
         testID="login-password"
         label="Password"
@@ -68,39 +80,57 @@ export default function Login() {
         }
       />
 
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 4 }}>
         <Pressable testID="remember-me" onPress={() => setRemember((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name={remember ? "checkbox" : "square-outline"} size={20} color={remember ? c.blue : c.textMuted} />
-          <Text style={{ color: c.textMuted, fontSize: 14 }}>Remember Me</Text>
+          <Ionicons name={remember ? "checkbox" : "square-outline"} size={20} color={remember ? "#1463E8" : c.textMuted} />
+          <Text style={{ color: c.textMuted, fontSize: 14, fontWeight: "600" }}>Remember me</Text>
         </Pressable>
         <Pressable testID="forgot-link" onPress={() => router.push("/forgot-password")}>
-          <Text style={{ color: c.blue, fontSize: 14, fontWeight: "600" }}>Forgot Password?</Text>
+          <Text style={{ color: "#1463E8", fontSize: 14, fontWeight: "700" }}>Forgot Password?</Text>
         </Pressable>
       </View>
 
-      {!!err && <Text testID="login-error" style={{ color: c.red, fontSize: 14 }}>{err}</Text>}
+      {!!err && <Text testID="login-error" style={{ color: c.red, fontSize: 14, textAlign: "center" }}>{err}</Text>}
 
-      <Button testID="login-submit" title="Login" onPress={submit} loading={loading} />
+      <Button testID="login-submit" title="Login" onPress={submit} loading={loading} color="#1463E8" />
 
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 2 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 6 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
-        <Text style={{ color: c.textMuted, fontSize: 12 }}>OR CONTINUE WITH</Text>
+        <Text style={{ color: c.textMuted, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 }}>OR CONTINUE WITH</Text>
         <View style={{ flex: 1, height: 1, backgroundColor: c.border }} />
       </View>
 
-      <Button testID="google-login" title="Sign in with Google" onPress={googleLogin} variant="outline" icon="logo-google" />
-      <Button testID="gov-login" title="Government ID Login" onPress={gov} variant="soft" icon="shield-checkmark-outline" />
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Button 
+            testID="google-login" 
+            title="Google" 
+            onPress={googleLogin} 
+            variant="outline" 
+            icon="logo-google" 
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button 
+            testID="gov-login" 
+            title="Government ID" 
+            onPress={gov} 
+            variant="soft" 
+            icon="shield-checkmark-outline" 
+          />
+        </View>
+      </View>
 
-      <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 4 }}>
-        <Text style={{ color: c.textMuted, fontSize: 14 }}>New to SAHAYSETU?</Text>
+      <View style={{ flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 14 }}>
+        <Text style={{ color: c.textMuted, fontSize: 14 }}>Don't have an account?</Text>
         <Pressable testID="register-link" onPress={() => router.push("/register")}>
-          <Text style={{ color: c.blue, fontSize: 14, fontWeight: "700" }}>Create an account</Text>
+          <Text style={{ color: "#1463E8", fontSize: 14, fontWeight: "800" }}>Register now</Text>
         </Pressable>
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 4 }}>
-        <Ionicons name="lock-closed" size={13} color={c.green} />
-        <Text style={{ color: c.textMuted, fontSize: 12 }}>Secure, encrypted authentication</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12 }}>
+        <Ionicons name="lock-closed" size={13} color="#16A66A" />
+        <Text style={{ color: c.textMuted, fontSize: 12, fontWeight: "600" }}>Secure, encrypted authentication</Text>
       </View>
     </AuthScaffold>
   );

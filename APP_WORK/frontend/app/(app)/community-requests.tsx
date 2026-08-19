@@ -214,8 +214,12 @@ export default function CommunityRequests() {
             )}
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <Button title="Cancel" onPress={() => setFormOpen(false)} variant="outline" />
-              <Button title="Submit Support Offer" onPress={handleHelpSubmit} />
+              <View style={{ flex: 1 }}>
+                <Button title="Cancel" onPress={() => setFormOpen(false)} variant="outline" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Submit Support Offer" onPress={handleHelpSubmit} />
+              </View>
             </View>
           </View>
         </View>

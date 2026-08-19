@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: sahaysetu-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        sync: false        # Set this in Render dashboard → Environment
+      - key: DB_NAME
+        value: sahaysetu
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_MINUTES
+        value: 60
+      - key: OTP_MINUTES
+        value: 5
+      - key: DEV_RETURN_OTP
+        value: true
+      - key: EMERGENT_OAUTH_URL
+        sync: false        # Set this in Render dashboard after deploy
+      - key: TEXTBEE_API_KEY
+        sync: false
+      - key: TEXTBEE_DEVICE_ID
+        sync: false

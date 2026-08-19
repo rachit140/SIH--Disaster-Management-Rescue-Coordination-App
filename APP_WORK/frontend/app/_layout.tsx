@@ -8,6 +8,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { ThemeProvider } from "@/src/theme/ThemeContext";
 import { AuthProvider } from "@/src/auth/AuthContext";
+import { Footer } from "@/src/components/Footer";
+import { ScrollToTop } from "@/src/components/ScrollToTop";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +29,8 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
+            <Footer />
+            <ScrollToTop />
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

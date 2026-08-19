@@ -473,8 +473,12 @@ export default function Requests() {
             </ScrollView>
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
-              <Button testID="rq-submit" title="Submit Request" onPress={handleCreate} />
+              <View style={{ flex: 1 }}>
+                <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button testID="rq-submit" title="Submit Request" onPress={handleCreate} />
+              </View>
             </View>
           </View>
         </View>

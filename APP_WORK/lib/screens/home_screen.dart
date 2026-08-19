@@ -31,26 +31,70 @@ class _SurvivorHomeState extends State<SurvivorHome> {
     final sos = context.watch<SosProvider>();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FC),
       appBar: AppBar(
-        title: const Text('SIH1440 Rescue'),
+        title: const Text('SahaySetu Rescue'),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: () => auth.logout()),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Color(0xFF123B78)), 
+            onPressed: () => auth.logout(),
+          ),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Text('Welcome, ${auth.user?.name ?? ""}', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 16),
+            Text(
+              'Welcome, ${auth.user?.name ?? "Survivor"}! 👋', 
+              style: const TextStyle(
+                color: Color(0xFF123B78),
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: 8),
-            const Chip(label: Text('Status: SAFE')),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6F6EF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF16A66A)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF16A66A)),
+                  SizedBox(width: 6),
+                  Text(
+                    'STATUS: SECURE & SAFE', 
+                    style: TextStyle(
+                      color: Color(0xFF16A66A), 
+                      fontSize: 11, 
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const Spacer(),
             if (sos.activeSos != null)
               Card(
-                color: Colors.red.shade50,
+                color: const Color(0xFFFDECEC),
+                margin: const EdgeInsets.only(bottom: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: Color(0xFFEF3340)),
+                ),
                 child: ListTile(
-                  title: Text('SOS Active: ${sos.activeSos!.messageId}'),
-                  subtitle: Text('Status: ${sos.activeSos!.status}'),
+                  leading: const Icon(Icons.crisis_alert, color: Color(0xFFEF3340)),
+                  title: Text(
+                    'Active SOS: ${sos.activeSos!.messageId.substring(0, 8)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFEF3340)),
+                  ),
+                  subtitle: Text('Status: ${sos.activeSos!.status.toUpperCase()}'),
                 ),
               ),
             GestureDetector(
@@ -58,21 +102,52 @@ class _SurvivorHomeState extends State<SurvivorHome> {
                   ? null
                   : () => _confirmSos(context),
               child: Container(
-                width: 180,
-                height: 180,
+                width: 200,
+                height: 200,
                 decoration: BoxDecoration(
-                  color: Colors.red,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFEF3340), Color(0xFFFF2D55)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 5)],
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEF3340).withOpacity(0.4), 
+                      blurRadius: 30, 
+                      spreadRadius: 8,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFEF3340).withOpacity(0.2), 
+                      blurRadius: 15, 
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
                 child: sos.sending
                     ? const Center(child: CircularProgressIndicator(color: Colors.white))
                     : const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.emergency, size: 48, color: Colors.white),
+                          Icon(Icons.emergency, size: 56, color: Colors.white),
                           SizedBox(height: 8),
-                          Text('SEND SOS', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text(
+                            'SEND SOS', 
+                            style: TextStyle(
+                              color: Colors.white, 
+                              fontSize: 22, 
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          Text(
+                            'TAP IN EMERGENCY',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ],
                       ),
               ),
@@ -81,14 +156,17 @@ class _SurvivorHomeState extends State<SurvivorHome> {
             TextField(
               controller: _messageController,
               decoration: const InputDecoration(
-                labelText: 'Emergency message (optional)',
-                border: OutlineInputBorder(),
+                labelText: 'Emergency details (optional)',
+                prefixIcon: Icon(Icons.edit_note, color: Color(0xFF667085)),
               ),
               maxLines: 2,
             ),
             if (sos.error != null) ...[
-              const SizedBox(height: 8),
-              Text(sos.error!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 12),
+              Text(
+                sos.error!, 
+                style: const TextStyle(color: Color(0xFFEF3340), fontWeight: FontWeight.bold),
+              ),
             ],
           ],
         ),

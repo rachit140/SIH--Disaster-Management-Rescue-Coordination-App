@@ -576,8 +576,12 @@ export default function Camps() {
             </ScrollView>
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-              <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
-              <Button title="Establish Camp" onPress={handleCreate} />
+              <View style={{ flex: 1 }}>
+                <Button title="Cancel" onPress={() => setModalOpen(false)} variant="outline" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Establish Camp" onPress={handleCreate} />
+              </View>
             </View>
           </View>
         </View>
